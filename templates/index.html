@@ -1,0 +1,77 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Sound Wave</title>
+    <script src="https://cdn.plot.ly/plotly-latest.min.js"></script>
+</head>
+<body>
+    <div id="plot"></div>
+    <form id="record-form" method="post" action="/">
+        <button id="record-btn" type="button" onclick="startRecording()">Record</button>
+        <button id="stop-btn" type="button" onclick="stopRecording()" style="display: none;">Stop</button>
+    </form>
+    <script>
+        let recording = false;
+        let chunks = [];
+        let mediaRecorder;
+        let plotDiv = document.getElementById('plot');
+
+        async function startRecording() {
+            try {
+                chunks = []; // Clear previous recording
+                const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+                mediaRecorder = new MediaRecorder(stream);
+                mediaRecorder.ondataavailable = function(e) {
+                    chunks.push(e.data);
+                };
+
+                mediaRecorder.onstop = function(e) {
+                    const audioBlob = new Blob(chunks, { type: 'audio/wav' });
+                    const audioUrl = URL.createObjectURL(audioBlob);
+
+                    // Play recorded audio
+                    const audio = new Audio(audioUrl);
+                    audio.play();
+
+                    // Display recorded waveform
+                    fetch(audioUrl)
+                        .then(response => response.arrayBuffer())
+                        .then(data => {
+                            const context = new AudioContext();
+                            context.decodeAudioData(data, function(buffer) {
+                                Plotly.newPlot(plotDiv, [{
+                                    x: Array.from({ length: buffer.length }, (_, i) => i),
+                                    y: buffer.getChannelData(0),
+                                    type: 'scatter',
+                                    mode: 'lines',
+                                    name: 'Sound'
+                                }], {
+                                    title: 'Sound Waveform'
+                                });
+                            });
+                        });
+                };
+
+                mediaRecorder.start();
+                recording = true;
+                document.getElementById('record-btn').style.display = 'none';
+                document.getElementById('stop-btn').style.display = 'inline';
+            } catch (error) {
+                console.error('Error accessing microphone:', error);
+            }
+        }
+
+
+        function stopRecording() {
+            if (recording) {
+                mediaRecorder.stop();
+                recording = false;
+                document.getElementById('record-btn').style.display = 'inline';
+                document.getElementById('stop-btn').style.display = 'none';
+            }
+        }
+    </script>
+</body>
+</html>
